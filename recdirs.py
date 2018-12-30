@@ -17,11 +17,6 @@
 #      misrepresented as being the original software.
 #   3. This notice may not be removed or altered from any source distribution.
 
-import os
-from kupfer.objects import Source
-from kupfer.obj.objects import ConstructFileLeaf
-from kupfer import plugin_support
-
 __kupfer_name__ = _("Recursive Directories")
 __kupfer_sources__ = ("RecursiveDirectorySource", )
 __kupfer_text_sources__ = ()
@@ -29,6 +24,11 @@ __kupfer_actions__ = ()
 __description__ = _("Provides recursive directory access")
 __version__ = "0.1"
 __author__ = "Christopher Pramerdorfer"
+
+import os, sys
+from kupfer.objects import Source
+from kupfer.obj.objects import ConstructFileLeaf
+from kupfer import plugin_support
 
 __kupfer_settings__ = plugin_support.PluginSettings(
     {
@@ -46,7 +46,15 @@ __kupfer_settings__ = plugin_support.PluginSettings(
 )
 
 def get_immediate_subdirectories(dir, blacklist):
-    return [os.path.join(dir, name) for name in os.listdir(dir) if os.path.isdir(os.path.join(dir, name)) and name not in blacklist]
+    try:
+        return [os.path.join(dir, name) for name in os.listdir(dir) if os.path.isdir(os.path.join(dir, name)) and name not in blacklist]
+    except PermissionError:
+        err = "{app_name}: cannot open directory '{dir}': Permission denied".format(
+            dir=dir,
+            app_name=__kupfer_name__
+        )
+        print(err, file=sys.stderr)
+        return []
 
 def get_recursive_subdirectories(dir, blacklist, rcur, rmax, sink):
     subdirs = get_immediate_subdirectories(dir, blacklist)
@@ -77,7 +85,7 @@ class RecursiveDirectorySource (Source):
         blacklist = self._get_blacklist()
         directories = set()
 
-        for dir, levels in dirinfo.iteritems():
+        for dir, levels in list(dirinfo.items()):
             directories.add(dir)
             get_recursive_subdirectories(dir, blacklist, 1, levels, directories)
 
@@ -93,7 +101,7 @@ class RecursiveDirectorySource (Source):
         if len(dirs) != len(levels):
             raise ValueError('Must define number of recursion levels for every root directory.')
 
-        info = dict(zip(dirs, levels))
+        info = dict(list(zip(dirs, levels)))
         for d in dirs:
             if not os.path.isdir(d):
                 del info[d]
